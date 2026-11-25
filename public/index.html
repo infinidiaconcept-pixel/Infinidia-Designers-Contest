@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>IDC Portal</title>
+<style>
+:root{--bg:#f6f5f1;--c:#fff;--t:#1b1b1f;--m:#6b6b73;--a:#5b3df5;--l:#e3e1da}
+@media(prefers-color-scheme:dark){:root{--bg:#141417;--c:#1e1e23;--t:#f1f1f3;--m:#9a9aa5;--l:#33333b}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--t)}
+main{max-width:860px;margin:0 auto;padding:16px}header{display:flex;justify-content:space-between;align-items:center;padding:12px 0}
+h1{font-size:20px;margin:0}h2{font-size:17px;margin:0 0 6px}.card{background:var(--c);border:1px solid var(--l);border-radius:12px;padding:16px;margin:12px 0}
+input,select,textarea{width:100%;padding:9px;margin:4px 0 10px;border:1px solid var(--l);border-radius:8px;background:var(--bg);color:var(--t);font:inherit}
+button{background:var(--a);color:#fff;border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer}button.g{background:none;color:var(--a);border:1px solid var(--a)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.m{color:var(--m);font-size:13px}.e{color:#d33}.ok{color:#198a4a}
+.imgs{display:flex;gap:8px;flex-wrap:wrap}.imgs img{height:150px;border-radius:8px;border:1px solid var(--l)}.sc{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid var(--l)}
+</style></head><body><main><header><h1>Infinidia Designers Contest</h1><span id="who"></span></header><div id="app"></div></main>
+<script>
+const $=s=>document.querySelector(s),h=x=>String(x??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let T=localStorage.t,R=localStorage.r,N=localStorage.n,tab='pending';
+async function api(p,b){const r=await fetch('/api/'+p,{method:b?'POST':'GET',headers:{'content-type':'application/json','x-t':T||''},body:b?JSON.stringify(b):undefined});
+ const j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&T)out();throw new Error(j.error||'Something went wrong')}return j}
+const msg=(id,t,ok)=>{const e=$('#'+id);if(e){e.className=ok?'ok':'e';e.textContent=t}};
+const val=id=>$('#'+id).value;
+function out(){localStorage.clear();T=R=N=null;view()}
+function login(role,j){T=j.t;R=role;N=j.idc?j.idc+' · '+j.name:j.name;localStorage.t=T;localStorage.r=R;localStorage.n=N;view()}
+function view(){$('#who').innerHTML=T?`<span class="m">${h(N)}</span> <button class="g" onclick="out()">Log out</button>`:'';
+ if(!T)return auth('p');R==='s'?staff():part()}
+function auth(mode){$('#app').innerHTML=`<div class="tabs"><button class="${mode=='p'?'':'g'}" onclick="auth('p')">Participant</button><button class="${mode=='r'?'':'g'}" onclick="auth('r')">Register</button><button class="${mode=='s'?'':'g'}" onclick="auth('s')">Staff</button></div><div class="card">`+
+ (mode=='r'?`<h2>Register</h2><p class="m">Register after your payment is confirmed. You can log in once we approve you.</p>Full name<input id="n">Email<input id="e" type="email">WhatsApp number<input id="ph">Country<input id="co">Password<input id="pw" type="password">Registration code (from WhatsApp)<input id="cd"><button onclick="reg()">Register</button>`:
+ mode=='s'?`<h2>Staff login</h2>Your name (judge)<input id="n">Staff password<input id="pw" type="password"><button onclick="slog()">Log in</button>`:
+ `<h2>Log in</h2>Email<input id="e" type="email">Password<input id="pw" type="password"><button onclick="plog()">Log in</button>`)+`<p id="m"></p></div>`}
+const reg=()=>api('register',{name:val('n'),email:val('e'),phone:val('ph'),country:val('co'),password:val('pw'),code:val('cd')}).then(()=>msg('m','Registered! Wait for approval on WhatsApp, then log in.',1)).catch(e=>msg('m',e.message));
+const plog=()=>api('login',{email:val('e'),password:val('pw')}).then(j=>login('p',j)).catch(e=>msg('m',e.message));
+const slog=()=>api('staff/login',{judge:val('n'),password:val('pw')}).then(j=>login('s',j)).catch(e=>msg('m',e.message));
+// participant
+const shrink=f=>new Promise(r=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);r(c.toDataURL('image/jpeg',.82))};i.src=URL.createObjectURL(f)});
+async function part(){const bs=await api('briefs');$('#app').innerHTML=bs.length?bs.map(b=>`<div class="card"><h2>Day ${b.day}: ${h(b.title)}</h2><p class="m">${h(b.type)} · up to ${b.max_files} image(s)${b.deadline?' · Deadline: '+new Date(b.deadline).toLocaleString():''}</p><p>${h(b.descr).replace(/\n/g,'<br>')}</p>
+ <p class="m">${b.n?`You have uploaded ${b.n} file(s). Uploading again replaces them.`:'Nothing uploaded yet.'}</p><input type="file" id="f${b.id}" accept="image/*" multiple><button onclick="up(${b.id})">Submit</button> <span id="m${b.id}"></span></div>`).join(''):'<div class="card">No briefs yet. Check back when the first brief is released.</div>'}
+async function up(id){const fs=[...$('#f'+id).files];if(!fs.length)return msg('m'+id,'Choose image file(s) first.');msg('m'+id,'Uploading...',1);
+ try{const r=await api('submit',{brief_id:id,files:await Promise.all(fs.map(shrink))});msg('m'+id,r.late?'Uploaded, but marked late.':'Uploaded!',1);part()}catch(e){msg('m'+id,e.message)}}
+// staff
+function staff(){const t=(k,l)=>`<button class="${tab==k?'':'g'}" onclick="tab='${k}';staff()">${l}</button>`;
+ $('#app').innerHTML=`<div class="tabs">${t('pending','Approvals')}${t('briefs','Post brief')}${t('grade','Grade')}${t('board','Leaderboard')}</div><div id="v"></div>`;({pending,briefs,grade,board})[tab]()}
+async function pending(){const p=await api('staff/pending');$('#v').innerHTML=p.length?p.map(u=>`<div class="card"><b>${h(u.name)}</b><div class="m">${h(u.email)} · ${h(u.phone)} · ${h(u.country)}</div><button onclick="appr(${u.id})">Approve</button></div>`).join(''):'<div class="card">No pending registrations.</div>'}
+async function appr(id){const r=await api('staff/approve',{id});alert('Approved. Their ID is '+r.idc);pending()}
+function briefs(){$('#v').innerHTML=`<div class="card"><h2>Post a brief</h2>Day number<input id="d" type="number" min="1" max="10">Title<input id="ti">Design type<select id="ty"><option>Flyer design<option>Poster design<option>Campaign design<option>Event branding<option>Brand identity design</select>Brief<textarea id="de" rows="5"></textarea>Max designs per participant<input id="mx" type="number" value="1" min="1">Deadline<input id="dl" type="datetime-local"><button onclick="pb()">Publish brief</button> <span id="m"></span></div>`}
+const pb=()=>api('staff/brief',{day:+val('d'),title:val('ti'),type:val('ty'),descr:val('de'),max_files:+val('mx'),deadline:val('dl')?new Date(val('dl')).toISOString():null}).then(()=>msg('m','Published!',1)).catch(e=>msg('m',e.message));
+async function grade(){const bs=await api('staff/briefs');$('#v').innerHTML=`<div class="card">Brief<select id="gb" onchange="subs()"><option value="">Choose a brief...</option>${bs.map(b=>`<option value="${b.id}">Day ${b.day}: ${h(b.title)}</option>`).join('')}</select></div><div id="gl"></div>`}
+async function subs(){const id=val('gb');if(!id)return;const l=await api('staff/subs?brief='+id);
+ $('#gl').innerHTML=l.length?l.map(x=>{const m=x.mine||{};return`<div class="card"><b>${x.idc}</b>${x.late?' <span class="e">(late)</span>':''}<div class="imgs">${x.files.map(f=>`<a href="${f}" target="_blank"><img src="${f}"></a>`).join('')}</div>
+ <div class="sc">${[['c','Creativity'],['b','Brief adherence'],['t','Typography'],['p','Presentation']].map(([k,n])=>`<label class="m">${n} /10<input id="${k}${x.uid}" type="number" min="0" max="10" value="${m[k]??''}"></label>`).join('')}</div>
+ <input id="n${x.uid}" placeholder="Comment (optional)" value="${h(m.note)}"><button onclick="sv(${x.uid},${id})">Save score</button> <span id="m${x.uid}"></span></div>`}).join(''):'<div class="card">No submissions for this brief yet.</div>'}
+const sv=(u,b)=>api('staff/score',{uid:u,brief:+b,c:val('c'+u),b:val('b'+u),t:val('t'+u),p:val('p'+u),note:val('n'+u)}).then(()=>msg('m'+u,'Saved',1)).catch(e=>msg('m'+u,e.message));
+async function board(){const r=await api('staff/board');$('#v').innerHTML=`<div class="card"><table><tr><th>#</th><th>ID</th><th>Name</th><th>Briefs</th><th>Total</th></tr>${r.map((x,i)=>`<tr><td>${i+1}</td><td>${x.idc}</td><td>${h(x.name)}</td><td>${x.briefs}</td><td>${x.total}</td></tr>`).join('')}</table><p><button onclick="ex()">Download CSV</button></p></div>`}
+async function ex(){const{csv}=await api('staff/export'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='idc-leaderboard.csv';a.click()}
+view();
+</script></main></body></html>
